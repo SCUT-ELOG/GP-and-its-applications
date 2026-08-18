@@ -1,0 +1,339 @@
+# SPDX-License-Identifier: MIT
+#
+# Copyright (C) 2026 Jinghui Zhong
+#
+# Companion source code for Chapter 8 of the book
+# "Genetic Programming Algorithms and Applications" (《遗传编程算法及其应用》).
+
+import os
+import sys
+import pandas as pd
+import numpy as np
+import torch
+import json
+import warnings
+
+# 过滤掉常见的警告信息
+warnings.filterwarnings("ignore", message="To copy construct from a tensor")
+warnings.filterwarnings("ignore", message="Support for mismatched key_padding_mask and attn_mask is deprecated")
+warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+warnings.filterwarnings("ignore", message="You have multiple `ModelCheckpoint` callback states")
+warnings.filterwarnings("ignore", message="Lightning automatically upgraded your loaded checkpoint")
+warnings.filterwarnings("ignore", category=UserWarning, module="pytorch_lightning")
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
+
+from nesymres.architectures.model import Model
+from nesymres.dclasses import FitParams, NNEquation, BFGSParams
+from pathlib import Path
+from functools import partial
+from sympy import lambdify
+import omegaconf
+
+def load_feynman_dataset(dataset_name, num_samples=100, train_ratio=0.8, random_seed=0):
+    """
+    从Feynman_with_units目录加载指定的数据集，并进行标准化
+    
+    Args:
+        dataset_name: 数据集名称，如 "1.6.2", "1.6.2a" 等
+        num_samples: 使用的数据样本数量，默认100
+        train_ratio: 训练集比例，默认0.8
+        random_seed: 随机种子
+    
+    Returns:
+        X_train: 标准化后的训练集输入特征 (torch.Tensor)
+        y_train: 标准化后的训练集目标值 (torch.Tensor)
+        X_test: 标准化后的测试集输入特征 (torch.Tensor)
+        y_test: 标准化后的测试集目标值 (torch.Tensor)
+        scaler_X: 输入特征的标准化器
+        scaler_y: 目标值的标准化器
+    """
+    # 设置随机种子
+    np.random.seed(random_seed)
+    torch.manual_seed(random_seed)
+    
+    # 将数据集名称转换为文件路径格式
+    if dataset_name.startswith("1."):
+        file_name = f"I.{dataset_name[2:]}"
+    else:
+        file_name = dataset_name
+    
+    dataset_path = f"dataset/{file_name}"
+    
+    # 读取数据，只取前num_samples条
+    data = np.loadtxt(dataset_path)
+    data = data[:num_samples]
+    
+    # 随机打乱数据
+    indices = np.random.permutation(len(data))
+    data = data[indices]
+    
+    # 分离输入特征和目标值
+    X = data[:, :-1]  # 除最后一列外的所有列作为输入特征
+    y = data[:, -1]   # 最后一列作为目标值
+    
+    # 计算训练集和测试集的分割点
+    train_size = int(len(data) * train_ratio)
+    
+    # 划分训练集和测试集
+    X_train = X[:train_size]
+    y_train = y[:train_size]
+    X_test = X[train_size:]
+    y_test = y[train_size:]
+    
+    # 标准化输入特征
+    X_mean = np.mean(X_train, axis=0)
+    X_std = np.std(X_train, axis=0)
+    X_std[X_std == 0] = 1  # 避免除零错误
+    X_train_scaled = (X_train - X_mean) / X_std
+    X_test_scaled = (X_test - X_mean) / X_std
+    
+    # 标准化目标值
+    y_mean = np.mean(y_train)
+    y_std = np.std(y_train)
+    if y_std == 0:
+        y_std = 1  # 避免除零错误
+    y_train_scaled = (y_train - y_mean) / y_std
+    y_test_scaled = (y_test - y_mean) / y_std
+    
+    # 保存标准化参数
+    scaler_X = {'mean': X_mean, 'std': X_std}
+    scaler_y = {'mean': y_mean, 'std': y_std}
+    
+    # 转换为torch张量
+    X_train = torch.tensor(X_train_scaled, dtype=torch.float32)
+    y_train = torch.tensor(y_train_scaled, dtype=torch.float32)
+    X_test = torch.tensor(X_test_scaled, dtype=torch.float32)
+    y_test = torch.tensor(y_test_scaled, dtype=torch.float32)
+    
+    return X_train, y_train, X_test, y_test, scaler_X, scaler_y
+
+def calculate_mse(y_true, y_pred):
+    """计算均方误差"""
+    return torch.mean((y_true - y_pred) ** 2).item()
+
+def save_experiment_results(dataset_name, all_experiments, results_dir):
+    """保存所有实验结果到文件"""
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # 保存为可读的JSON格式
+    json_results = []
+    for i, data in enumerate(all_experiments):
+        # 处理无穷大值
+        test_rmse = data['test_rmse']
+        if test_rmse == float('inf'):
+            test_rmse = "Infinity"
+        elif test_rmse == float('-inf'):
+            test_rmse = "-Infinity"
+        else:
+            # 确保是Python原生float类型
+            test_rmse = float(test_rmse)
+        
+        # 确保适应度历史中的所有值都是Python原生float类型
+        fitness_history = []
+        if data['fitness_history']:
+            fitness_history = [float(x) for x in data['fitness_history']]
+        
+        experiment_result = {
+            'experiment_id': i + 1,  # 实验编号从1开始
+            'seed': int(data['seed']),  # 确保是Python原生int类型
+            'test_rmse': test_rmse,
+            'best_equation': str(data['best_equation']) if data['best_equation'] else None,
+            'fitness_history': fitness_history
+        }
+        json_results.append(experiment_result)
+    
+    json_file = os.path.join(results_dir, f"NeSymReS_{dataset_name}.json")
+    with open(json_file, 'w', encoding='utf-8') as f:
+        json.dump(json_results, f, indent=2, ensure_ascii=False)
+    
+    print(f"所有实验结果已保存到: {json_file}")
+
+def run_single_experiment(dataset_name, seed, fitfunc):
+    """运行单次实验"""
+    print(f"  种子 {seed}: ", end="", flush=True)
+    
+    # 加载数据集
+    X_train, y_train, X_test, y_test, scaler_X, scaler_y = load_feynman_dataset(
+        dataset_name, random_seed=seed
+    )
+    
+    # 确保数据在正确的设备上
+    if torch.cuda.is_available():
+        X_train = X_train.cuda()
+        y_train = y_train.cuda()
+        X_test = X_test.cuda()
+        y_test = y_test.cuda()
+    
+    # 运行符号回归
+    output = fitfunc(X_train, y_train)
+    
+    # 计算测试集MSE
+    best_equation = None
+    fitness_history = []
+    
+    if 'best_bfgs_preds' in output and output['best_bfgs_preds']:
+        # 获取最佳预测方程字符串
+        best_equation = output['best_bfgs_preds'][0]
+        
+        # 使用sympy解析和计算MSE
+        try:
+            import sympy as sp
+            import numpy as np
+            
+            # 定义变量（根据输入特征数量动态定义）
+            n_features = X_test.shape[1]
+            if n_features == 1:
+                x_1 = sp.symbols('x_1')
+                variables = [x_1]
+            elif n_features == 2:
+                x_1, x_2 = sp.symbols('x_1 x_2')
+                variables = [x_1, x_2]
+            elif n_features == 3:
+                x_1, x_2, x_3 = sp.symbols('x_1 x_2 x_3')
+                variables = [x_1, x_2, x_3]
+            else:
+                # 对于更多特征，动态创建变量
+                variables = [sp.symbols(f'x_{i+1}') for i in range(n_features)]
+            
+            # 解析表达式
+            expr = sp.sympify(best_equation)
+            
+            # 转换为可调用函数
+            func = sp.lambdify(variables, expr, 'numpy')
+            
+            # 在测试集上进行预测
+            X_test_np = X_test.cpu().numpy()
+            y_test_np = y_test.cpu().numpy()
+            
+            if n_features == 1:
+                y_pred = func(X_test_np[:, 0])
+            elif n_features == 2:
+                y_pred = func(X_test_np[:, 0], X_test_np[:, 1])
+            elif n_features == 3:
+                y_pred = func(X_test_np[:, 0], X_test_np[:, 1], X_test_np[:, 2])
+            else:
+                # 对于更多特征，使用*解包
+                y_pred = func(*[X_test_np[:, i] for i in range(n_features)])
+            
+            # 确保预测结果是有限的
+            if np.isfinite(y_pred).all():
+                test_rmse = np.sqrt(np.mean((y_test_np - y_pred) ** 2))
+            else:
+                test_rmse = float('inf')
+                
+        except Exception as e:
+            # 如果解析或预测失败，保持MSE为无穷大
+            test_mse = float('inf')
+    
+    # 提取适应度历史（使用训练损失）
+    if 'all_bfgs_loss' in output and output['all_bfgs_loss']:
+        # 将numpy数组转换为Python float列表
+        fitness_history = [float(loss) for loss in output['all_bfgs_loss']]
+    elif 'best_bfgs_loss' in output and output['best_bfgs_loss']:
+        fitness_history = [float(output['best_bfgs_loss'][0])]
+    
+    # 显示结果
+    if test_rmse == float('inf'):
+        print("RMSE = inf")
+    else:
+        print(f"RMSE = {test_rmse:.6f}")
+    
+    return {
+        'seed': seed,
+        'test_rmse': test_rmse,
+        'best_equation': best_equation,
+        'fitness_history': fitness_history
+    }
+
+## Load equation configuration and architecture configuration
+# Adjust path to be relative to the project root
+with open('jupyter/100M/eq_setting.json', 'r') as json_file:
+  eq_setting = json.load(json_file)
+
+# Adjust path to be relative to the project root
+cfg = omegaconf.OmegaConf.load("jupyter/100M/config.yaml")
+
+## Set up BFGS load rom the hydra config yaml
+bfgs = BFGSParams(
+        activated= cfg.inference.bfgs.activated,
+        n_restarts=cfg.inference.bfgs.n_restarts,
+        add_coefficients_if_not_existing=cfg.inference.bfgs.add_coefficients_if_not_existing,
+        normalization_o=cfg.inference.bfgs.normalization_o,
+        idx_remove=cfg.inference.bfgs.idx_remove,
+        normalization_type=cfg.inference.bfgs.normalization_type,
+        stop_time=cfg.inference.bfgs.stop_time,
+    )
+
+params_fit = FitParams(word2id=eq_setting["word2id"], 
+                            id2word={int(k): v for k,v in eq_setting["id2word"].items()}, 
+                            una_ops=eq_setting["una_ops"], 
+                            bin_ops=eq_setting["bin_ops"], 
+                            total_variables=list(eq_setting["total_variables"]),
+                            total_coefficients=list(eq_setting["total_coefficients"]),
+                            rewrite_functions=list(eq_setting["rewrite_functions"]),
+                            bfgs=bfgs,
+                            beam_size=cfg.inference.beam_size #This parameter is a tradeoff between accuracy and fitting time
+                            )
+
+# Adjust path to be relative to the project root
+weights_path = "weights/100M.ckpt"
+
+## Load architecture, set into eval mode, and pass the config parameters
+model = Model.load_from_checkpoint(weights_path, cfg=cfg.architecture)
+model.eval()
+if torch.cuda.is_available(): 
+  model.cuda()
+
+fitfunc = partial(model.fitfunc,cfg_params=params_fit)
+
+if __name__ == "__main__":
+    # 指定要处理的数据集
+    datasets = ["I.6.2", "I.6.2b", "I.12.4", "I.14.3", "I.14.4", "I.25.13"]
+    
+    # 结果保存目录
+    results_dir = "results"
+    
+    # 随机种子列表
+    seeds = list(range(10))  # 0-9
+    
+    for dataset_name in datasets:
+        print(f"\n正在处理数据集: {dataset_name}")
+        print("=" * 60)
+        
+        # 存储所有实验结果
+        all_experiments = []
+        
+        # 运行10次实验
+        for seed in seeds:
+            experiment_result = run_single_experiment(dataset_name, seed, fitfunc)
+            all_experiments.append(experiment_result)
+        
+        # 创建按RMSE排序的副本用于显示
+        sorted_experiments = sorted(all_experiments, key=lambda x: x['test_rmse'])
+        
+        # 打印所有实验结果（按RMSE排序显示）
+        print(f"\n数据集 {dataset_name} 的所有实验结果（按RMSE排序）:")
+        print("-" * 50)
+        for i, result in enumerate(sorted_experiments):
+            if result['test_rmse'] == float('inf'):
+                print(f"实验 {i+1} (种子{result['seed']}): RMSE = inf")
+            else:
+                print(f"实验 {i+1} (种子{result['seed']}): RMSE = {result['test_rmse']:.6f}")
+        
+        # 计算统计信息
+        finite_rmse = [r['test_rmse'] for r in all_experiments if r['test_rmse'] != float('inf')]
+        if finite_rmse:
+            print(f"\n统计信息:")
+            print(f"最佳RMSE: {min(finite_rmse):.6f}")
+            print(f"最差RMSE: {max(finite_rmse):.6f}")
+            print(f"平均RMSE: {np.mean(finite_rmse):.6f}")
+            print(f"成功实验数: {len(finite_rmse)}/{len(all_experiments)}")
+        else:
+            print(f"\n所有实验都失败了 (RMSE = inf)")
+        
+        # 保存所有结果
+        save_experiment_results(dataset_name, all_experiments, results_dir)
+        
+        print("=" * 60)

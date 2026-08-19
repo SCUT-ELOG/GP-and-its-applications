@@ -23,7 +23,7 @@
 
 ## 本书解决什么问题
 
-本书围绕“如何表示程序、如何搜索程序、如何让结果更准确且可解释、如何扩展到真实任务”展开。读者可以从一套最小 GP 实现开始，逐步理解 GEP、LGP、语法进化、多目标与语义 GP，并把方法用于符号回归、分类、有限元建模和神经符号回归；最后学习 CUDA、OpenMP 和 MPI 实现思路。
+本书围绕“如何表示程序、如何搜索程序、如何让结果更准确且可解释、如何扩展到真实任务”展开。读者可以从一套最小 GP 实现开始，逐步理解 GEP、LGP、GE、多目标优化与语义GP，并把方法用于符号回归、分类、有限元建模和神经符号回归；最后学习 CUDA、OpenMP 和 MPI 实现思路。
 
 建议学习路径：
 
@@ -75,13 +75,13 @@ python "GP-book-code/chapter 2/SGP/quickstart.py"
 
 安装 SGP 时会自动安装这个示例所需的 `deap`、`numpy`、`scikit-learn` 和 `matplotlib`，无需另外逐个安装。若你已经位于 `GP-book-code/chapter 2/SGP` 目录，也可以运行 `python quickstart.py`。
 
-第 2 章根目录下的 [`grammatical_evolution.py`](GP-book-code/chapter%202/grammatical_evolution.py) 是独立的语法进化示例；运行它前请在仓库根目录执行 `python -m pip install deap`，再运行 `python "GP-book-code/chapter 2/grammatical_evolution.py"`。
+第 2 章根目录下的 [`grammatical_evolution.py`](GP-book-code/chapter%202/grammatical_evolution.py) 是独立的GE示例；运行它前请在仓库根目录执行 `python -m pip install deap`，再运行 `python "GP-book-code/chapter 2/grammatical_evolution.py"`。
 
 ## 章节—算法—代码—数据集对应表
 
 | 章节 | 核心主题 / 算法 | 代码入口 | 配套数据或案例 | 运行后可观察到 |
 | --- | --- | --- | --- | --- |
-| 第 2 章 | GEP、LGP、SGP、语法进化 | [chapter 2](GP-book-code/chapter%202/) | 合成函数、PMLB（Notebook 按需下载） | 表达式、预测误差、适应度曲线 |
+| 第 2 章 | GEP、LGP、SGP、GE | [chapter 2](GP-book-code/chapter%202/) | 合成函数、PMLB（Notebook 按需下载） | 表达式、预测误差、适应度曲线 |
 | 第 3 章 | 显式符号回归 MLDEP | [`mldep.py`](GP-book-code/chapter%203/mldep.py) | [F1–F12 基准数据](GP-book-code/chapter%203/Benchmark/new_compact_sample_dataset/) | 显式表达式及训练/测试误差 |
 | 第 4 章 | 隐式符号回归 LSE-GEP、CL-FEM | [chapter 4](GP-book-code/chapter%204/%E7%AC%AC%E5%9B%9B%E7%AB%A0/) | LSE-GEP 与 FEM 示例 | 隐式关系、最小二乘系数 |
 | 第 5 章 | 多目标 GP | [chapter 5](GP-book-code/chapter%205/) | [Feynman 含量纲数据](GP-book-code/chapter%205/Feynman_with_units/) | 精度—复杂度权衡、量纲约束结果 |

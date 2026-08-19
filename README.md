@@ -116,4 +116,5 @@ python pggp.py
 
 ## 引用
 
-如果本仓库或第 8 章的 Transformer 辅助遗传编程代码用于学术研究，请同时参考对应章节文档中的论文和引用信息。
+钟竞辉. 遗传编程算法及其应用[M]. 北京: 科学出版社, 2026.
+J. Zhong, Genetic Programming: Algorithms and Applications (in Chinese). Beijing, China: Science Press, 2026.

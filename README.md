@@ -47,7 +47,7 @@ GPU 与并行实现（第 9 章）
 
 ```bash
 git clone https://github.com/SCUT-ELOG/GP-and-its-applications.git
-cd "GP-and-its-applications/GP-book-code/chapter 2/SGP"
+cd GP-and-its-applications
 python -m venv .venv
 ```
 
@@ -55,38 +55,27 @@ Windows PowerShell：
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e .
+python -m pip install -e "GP-book-code/chapter 2/SGP"
 ```
 
 Linux / macOS：
 
 ```bash
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install -e "GP-book-code/chapter 2/SGP"
 ```
 
 ### 2. 运行最小示例
 
-```python
-import numpy as np
-from sgp import SGP
-
-X = np.linspace(-3, 3, 100).reshape(-1, 1)
-y = X[:, 0] ** 2
-
-model = SGP(pop_size=200, generations=20, seed=42, verbose=False).fit(X, y)
-print("发现的表达式：", model.best_expression_)
-print("R²：", model.score(X, y))
-model.plot_fitness("fitness_evolution.svg")
-```
-
-将代码保存为 `quickstart.py` 后运行：
-
 ```bash
-python quickstart.py
+python "GP-book-code/chapter 2/SGP/quickstart.py"
 ```
 
 **预期结果：** 终端输出进化得到的表达式和 R²，当前目录生成 `fitness_evolution.svg` 适应度曲线。遗传编程具有随机性，表达式形式与分数可能因环境而略有不同；固定 `seed=42` 有助于复现。更多拟合效果图和四组合成实验见 [`demo_basic.ipynb`](GP-book-code/chapter%202/SGP/notebooks/demo_basic.ipynb)。
+
+安装 SGP 时会自动安装这个示例所需的 `deap`、`numpy`、`scikit-learn` 和 `matplotlib`，无需另外逐个安装。若你已经位于 `GP-book-code/chapter 2/SGP` 目录，也可以运行 `python quickstart.py`。
+
+第 2 章根目录下的 [`grammatical_evolution.py`](GP-book-code/chapter%202/grammatical_evolution.py) 是独立的语法进化示例；运行它前请在仓库根目录执行 `python -m pip install deap`，再运行 `python "GP-book-code/chapter 2/grammatical_evolution.py"`。
 
 ## 章节—算法—代码—数据集对应表
 

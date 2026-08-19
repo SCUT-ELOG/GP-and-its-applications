@@ -9,10 +9,10 @@
 | 章节 | 主题 | 主要内容 |
 | --- | --- | --- |
 | 第 2 章 | 基础遗传编程 | GEP、LGP、标准遗传编程（SGP）和语法进化 |
-| 第 3 章 | MLDEP | 基于基因表达式和依赖分析的符号建模、矩阵化简与数据集 |
-| 第 4 章 | LSE-GEP | 最小二乘估计与 GEP 的结合，包括 FEM 示例 |
-| 第 5 章 | 多目标与语义遗传编程 | 多目标 GP、语义操作、维度间隙解析树与 Feynman 数据 |
-| 第 6 章 | GP 变体 | CCGP、HBWS 和随机表达式树生成 |
+| 第 3 章 | GP 显式符号回归 MLDEP | 基于基因表达式和依赖分析的符号建模、矩阵化简与数据集 |
+| 第 4 章 | GP 隐式符号回归 LSE-GEP | 最小二乘估计与 GEP 的结合，包括 FEM 示例 |
+| 第 5 章 | 多目标遗传编程 | 多目标 GP、语义操作、维度间隙解析树与 Feynman 数据 |
+| 第 6 章 | GP 组合优化 | CCGP、HBWS 和随机表达式树生成 |
 | 第 7 章 | GEP 分类 | GEP 分类器及 MONK、Iris、Haberman、Zoo 数据集 |
 | 第 8 章 | 神经符号回归 | PGGP、标准 GP、NeSymReS 和算法对比实验 |
 | 第 9 章 | 高性能实现 | CUDA、OpenMP 和 MPI 相关的 GP 实现 |
@@ -27,7 +27,7 @@ GP-book-code/
 │   ├── SGP/                 # 标准遗传编程 Python 包
 │   └── grammatical_evolution.py
 ├── chapter 3/               # MLDEP 及符号建模工具
-├── chapter 4/第四章/         # LSE-GEP、CL-FEM
+├── chapter 4/               # LSE-GEP、CL-FEM
 ├── chapter 5/               # 多目标、语义 GP 与 Feynman 数据
 ├── chapter 6/               # GP 变体和表达式树生成
 ├── chapter 7/               # GEP 分类及分类数据集
